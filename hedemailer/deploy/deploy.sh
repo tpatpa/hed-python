@@ -8,16 +8,14 @@ ROOT_DIR=${PWD}
 GIT_DIR="${PWD}/hed-python"
 GIT_REPO_URL="https://github.com/hed-standard/hed-python"
 GIT_REPO_BRANCH="master"
-DEPLOY_DIR="$GIT_DIR/hedemailer/deploy"
-CODE_DEPLOY_DIR="${DEPLOY_DIR}/hedtools"
 SERVER_CONFIG_DIR="$HOME/hedemailer_config"
 CONFIG_FILE="${SERVER_CONFIG_DIR}/config.py"
-WSGI_FILE="${DEPLOY_DIR}/hedemailer.wsgi"
+WSGI_FILE="${GIT_DIR}/hedemailer/deploy/hedemailer.wsgi"
 
 
 HEDEMAILER_CODE_DIR="$GIT_DIR/hedemailer"
 CONVERSION_CODE_DIR="$GIT_DIR/hedconversion/hedconversion"
-ENV_DIR="$HOME/hedemailer_env"
+ENV_DIR="${PWD}/hedemailer_env"
 
 SERVER_CODE_DIR="/var/www/gollum/hedemailer"
 SERVER_ENV_DIR="/var/www/gollum/env"
@@ -61,6 +59,7 @@ cleanup_directory()
 {
 echo Cleaning up directory...
 rm -rf $GIT_DIR
+rm -rf $ENV_DIR
 cd $ROOT_DIR
 }
 
