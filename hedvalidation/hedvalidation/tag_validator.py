@@ -417,7 +417,7 @@ class TagValidator:
             tag_unit_class_units = tuple(self.get_tag_unit_class_units(formatted_tag))
             if (TagValidator.CLOCK_TIME_UNIT_CLASS in
                     self._hed_dictionary_dictionaries[self.UNITS_ELEMENT]):
-                if (TagValidator.TIME_UNIT_CLASS in tag_unit_classes
+                if (TagValidator.CLOCK_TIME_UNIT_CLASS in tag_unit_classes
                         and TagValidator.is_clock_face_time(formatted_tag_unit_value)):
                     return validation_error
             elif (TagValidator.TIME_UNIT_CLASS in
