@@ -1,12 +1,13 @@
-from hedconversion import wiki2xml;
-from email.mime.multipart import MIMEMultipart;
-from email.mime.text import MIMEText;
-from flask import current_app;
-import os;
-import urllib.request;
-from hedemailer import constants;
+from hedconverter import wiki2xml
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from flask import current_app
+import os
+import urllib.request
+from hedemailer import constants
 
-app_config = current_app.config;
+app_config = current_app.config
+
 
 def create_standard_email(github_payload_dictionary, email_list):
     """Create a standard part of the HED schema email.
@@ -24,12 +25,12 @@ def create_standard_email(github_payload_dictionary, email_list):
         A tuple containing a MIMEBase object used to create the email and a string containing the main body text of the
         email.
     """
-    mime_email = MIMEMultipart();
+    mime_email = MIMEMultipart()
     mime_email[constants.EMAIL_SUBJECT_KEY] = '[' + github_payload_dictionary[constants.WIKI_REPOSITORY_KEY][
-        constants.WIKI_REPOSITORY_FULL_NAME_KEY] + '] ' + constants.WIKI_NOTIFICATIONS_TEXT;
-    mime_email[constants.EMAIL_FROM_KEY] = app_config[constants.CONFIG_EMAIL_FROM_KEY];
-    mime_email[constants.EMAIL_TO_KEY] = app_config[constants.CONFIG_EMAIL_TO_KEY];
-    mime_email[constants.EMAIL_BCC_KEY] = constants.EMAIL_LIST_DELIMITER.join(email_list);
+        constants.WIKI_REPOSITORY_FULL_NAME_KEY] + '] ' + constants.WIKI_NOTIFICATIONS_TEXT
+    mime_email[constants.EMAIL_FROM_KEY] = app_config[constants.CONFIG_EMAIL_FROM_KEY]
+    mime_email[constants.EMAIL_TO_KEY] = app_config[constants.CONFIG_EMAIL_TO_KEY]
+    mime_email[constants.EMAIL_BCC_KEY] = constants.EMAIL_LIST_DELIMITER.join(email_list)
     commit_info = get_info_from_push_event(github_payload_dictionary, get_only_wiki_file=False)
     media_wiki_url = app_config[constants.CONFIG_HED_WIKI_URL_KEY]
     if len(commit_info) > 0:
@@ -53,7 +54,8 @@ def create_standard_email(github_payload_dictionary, email_list):
     else:
         main_body_text = constants.NO_CHANGES_DETECTED_EMAIL
 
-    return mime_email, main_body_text;
+    return mime_email, main_body_text
+
 
 def create_hed_schema_email(mime_email, main_body_text):
     """Create HED schema email.
@@ -68,17 +70,17 @@ def create_hed_schema_email(mime_email, main_body_text):
     dictionary
         A dictionary containing resources used to create the email.
     """
-    hed_resource_dictionary = {};
+    hed_resource_dictionary = {}
     try:
-        hed_resource_dictionary = wiki2xml.convert_hed_wiki_2_xml(app_config[constants.CONFIG_HED_WIKI_URL_KEY]);
-        main_body_text = add_hed_xml_attachment_text(main_body_text, hed_resource_dictionary);
-        main_body = MIMEText(main_body_text);
-        mime_email.attach(main_body);
-        hed_xml_attachment = create_hed_xml_attachment(hed_resource_dictionary[constants.HED_XML_LOCATION_KEY]);
-        mime_email.attach(hed_xml_attachment);
+        hed_resource_dictionary = wiki2xml.convert_hed_wiki_2_xml(app_config[constants.CONFIG_HED_WIKI_URL_KEY])
+        main_body_text = add_hed_xml_attachment_text(main_body_text, hed_resource_dictionary)
+        main_body = MIMEText(main_body_text)
+        mime_email.attach(main_body)
+        hed_xml_attachment = create_hed_xml_attachment(hed_resource_dictionary[constants.HED_XML_LOCATION_KEY])
+        mime_email.attach(hed_xml_attachment)
     finally:
-        clean_up_hed_resources(hed_resource_dictionary);
-    return hed_resource_dictionary;
+        clean_up_hed_resources(hed_resource_dictionary)
+    return hed_resource_dictionary
 
 
 def clean_up_hed_resources(hed_resource_dictionary):
@@ -94,9 +96,10 @@ def clean_up_hed_resources(hed_resource_dictionary):
     """
     if hed_resource_dictionary:
         if constants.HED_XML_LOCATION_KEY in hed_resource_dictionary:
-            delete_file_if_exist(hed_resource_dictionary[constants.HED_XML_LOCATION_KEY]);
+            delete_file_if_exist(hed_resource_dictionary[constants.HED_XML_LOCATION_KEY])
         if constants.HED_WIKI_LOCATION_KEY in hed_resource_dictionary:
-            delete_file_if_exist(hed_resource_dictionary[constants.HED_WIKI_LOCATION_KEY]);
+            delete_file_if_exist(hed_resource_dictionary[constants.HED_WIKI_LOCATION_KEY])
+
 
 def get_info_from_push_event(github_payload_dictionary, get_only_wiki_file=False):
     """Checks to see if the commited page is the wiki page..
@@ -136,6 +139,7 @@ def get_info_from_push_event(github_payload_dictionary, get_only_wiki_file=False
 
     return return_info
 
+
 def push_page_is_hed_schema(github_payload_dictionary):
     """Checks to see if the commited page is the wiki page..
 
@@ -150,6 +154,7 @@ def push_page_is_hed_schema(github_payload_dictionary):
         True if the WIKI page is a HED schema WIKI page.
     """
     return len(get_info_from_push_event(github_payload_dictionary, get_only_wiki_file=True)) > 0
+
 
 #
 def request_is_github_push_event(request):
@@ -166,7 +171,7 @@ def request_is_github_push_event(request):
         True if the request is a github push event. False, if otherwise.
     """
     return request.headers.get(constants.HEADER_CONTENT_TYPE) == constants.JSON_CONTENT_TYPE and \
-           request.headers.get(constants.HEADER_EVENT_TYPE) == constants.PUSH;
+           request.headers.get(constants.HEADER_EVENT_TYPE) == constants.PUSH
 
 
 def add_hed_xml_attachment_text(main_body_text, hed_resource_dictionary):
@@ -184,11 +189,11 @@ def add_hed_xml_attachment_text(main_body_text, hed_resource_dictionary):
     string
         The main body text of the email with the appended HED attachment text.
     """
-    main_body_text += constants.HED_ATTACHMENT_TEXT;
-#     main_body_text += constants.HED_VERSION_TEXT + hed_resource_dictionary[constants.HED_XML_TREE_KEY].get(
-#         constants.HED_XML_VERSION_KEY);
-#     main_body_text += constants.CHANGE_LOG_TEXT + hed_resource_dictionary[constants.HED_CHANGE_LOG_KEY][0];
-    return main_body_text;
+    main_body_text += constants.HED_ATTACHMENT_TEXT
+    #     main_body_text += constants.HED_VERSION_TEXT + hed_resource_dictionary[constants.HED_XML_TREE_KEY].get(
+    #         constants.HED_XML_VERSION_KEY)
+    #     main_body_text += constants.CHANGE_LOG_TEXT + hed_resource_dictionary[constants.HED_CHANGE_LOG_KEY][0]
+    return main_body_text
 
 
 def create_hed_xml_attachment(hed_xml_file_path):
@@ -205,12 +210,12 @@ def create_hed_xml_attachment(hed_xml_file_path):
         A MIMEText object containing the HED XML attachment.
     """
     with open(hed_xml_file_path, 'r', encoding='utf-8') as hed_xml_file:
-        hed_xml_string = hed_xml_file.read();
-        hed_xml_attachment = MIMEText(hed_xml_string, 'plain', 'utf-8');
+        hed_xml_string = hed_xml_file.read()
+        hed_xml_attachment = MIMEText(hed_xml_string, 'plain', 'utf-8')
         hed_xml_attachment.add_header(constants.CONTENT_DISPOSITION_HEADER,
                                       constants.ATTACHMENT_CONTENT_DISPOSITION_HEADER,
-                                      filename=constants.HED_XML_ATTACHMENT_NAME);
-    return hed_xml_attachment;
+                                      filename=constants.HED_XML_ATTACHMENT_NAME)
+    return hed_xml_attachment
 
 
 def get_email_list_from_file(email_file_path):
@@ -226,11 +231,11 @@ def get_email_list_from_file(email_file_path):
     list
         A list containing the emails from a file.
     """
-    email_list = [];
+    email_list = []
     with open(email_file_path, 'r') as email_file:
         for email_address in email_file:
-            email_list.append(email_address.strip());
-    return email_list;
+            email_list.append(email_address.strip())
+    return email_list
 
 
 def url_to_file(resource_url, file_path):
@@ -246,10 +251,10 @@ def url_to_file(resource_url, file_path):
     Returns
     -------
     """
-    url_request = urllib.request.urlopen(resource_url);
-    url_data = str(url_request.read(), 'utf-8');
+    url_request = urllib.request.urlopen(resource_url)
+    url_data = str(url_request.read(), 'utf-8')
     with open(file_path, 'w', encoding='utf-8') as opened_file:
-        opened_file.write(url_data);
+        opened_file.write(url_data)
 
 
 def delete_file_if_exist(file_path):
@@ -264,6 +269,6 @@ def delete_file_if_exist(file_path):
     -------
     """
     if os.path.isfile(file_path):
-        os.remove(file_path);
-        return True;
-    return False;
+        os.remove(file_path)
+        return True
+    return False

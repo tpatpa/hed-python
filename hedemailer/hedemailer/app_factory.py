@@ -1,7 +1,7 @@
-from flask import Flask;
-import importlib;
+from flask import Flask
+import importlib
 
-STATIC_URL_PATH_ATTRIBUTE_NAME = 'STATIC_URL_PATH';
+STATIC_URL_PATH_ATTRIBUTE_NAME = 'STATIC_URL_PATH'
 
 
 class AppFactory:
@@ -19,10 +19,10 @@ class AppFactory:
         hedemailer app
             A hedemailer Flask app.
         """
-        static_url_path = AppFactory.get_static_url_path(config_class);
-        app = Flask(__name__, static_url_path=static_url_path);
-        app.config.from_object(config_class);
-        return app;
+        static_url_path = AppFactory.get_static_url_path(config_class)
+        app = Flask(__name__, static_url_path=static_url_path)
+        app.config.from_object(config_class)
+        return app
 
     @staticmethod
     def get_static_url_path(config_class):
@@ -39,6 +39,6 @@ class AppFactory:
             The static URL path of the hedmailer Flask app.
         """
         config_module_name, config_class_name = config_class.split(".")
-        config_module = importlib.import_module(config_module_name);
-        config_class = getattr(config_module, config_class_name);
-        return getattr(config_class, STATIC_URL_PATH_ATTRIBUTE_NAME, None);
+        config_module = importlib.import_module(config_module_name)
+        config_class = getattr(config_module, config_class_name)
+        return getattr(config_class, STATIC_URL_PATH_ATTRIBUTE_NAME, None)
