@@ -1,17 +1,17 @@
 import setuptools
 
-with open("../hedvalidation/README.md", "r") as fh:
+with open("../hedweb/README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="hedvalidation",
-    version="0.0.3",
-    author="VisLab, Jeremy Cockfield, Alexander Jones, Owen Winterberg, Ian Callanan, Kay Robbins",
+    name="hedweb",
+    version="0.0.1",
+    author="VisLab, Jeremy Cockfield, Ian Callanan, Kay Robbins",
     author_email="Kay.Robbins@utsa.edu",
-    description="Python tools used to validate strings and spreadsheets containing tags against a HED schema.",
+    description="Web interface for HED validation.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/hed-standard/hed-python/hedvalidation/",
+    url="https://github.com/hed-standard/hed-python/hedweb/",
     packages=setuptools.find_namespace_packages(include=["hed.*"]),
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -20,3 +20,4 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
 )
+
