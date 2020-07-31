@@ -1,0 +1,42 @@
+{% macro create_conversion_form() %}
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/conversion-form-helper.css') }}">
+    <form id="conversion-form" method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <h3>Source file: </h3>
+
+        <div class="form-group" id="url-hed-version">
+            <input type="radio" name="upload_options" id="option_url" value="option_url">
+            <label class="secondary-label" for="url-hed-version">Enter HED URL</label>
+            <label class="btn-group url-browse-group">
+                <label id="hed-full-url"></label>
+                <input type="url" name="hed-xml-url" id="hed-xml-url" onInput="onURLModified(event)" onkeypress="return event.keyCode!=13">
+            </label>
+            <p class="flash" id="hed-flash-url"></p>
+        </div>
+
+        <div class="form-group" id="other-hed-version">
+            <input type="radio" name="upload_options" id="option_upload" value="option_upload">
+            <label class="secondary-label" for="hed-xml-filename">Upload HED File:</label>
+            <label class="btn-group file-browse-group">
+                <button for="hed-xml-filename">Browse ...</button>
+                <label id="hed-filename"></label>
+                <input type="file" name="hed-xml-filename" id="hed-xml-filename"/>
+            </label>
+            <p class="flash" id="hed-flash"></p>
+        </div>
+
+        <h3>Actions: </h3>
+        <div class="form-group">
+            <button id="submit" type="button">Convert...</button>
+        </div>
+
+        <div class="form-group">
+            <button id="submit_tag" type="button">Check for Duplicate Tags</button>
+            <p class="flash" id="submit-flash"></p>
+        </div>
+
+    </form>
+    <script>
+        {%  include 'conversion-form-helper.js' %}
+    </script>
+{% endmacro %}
