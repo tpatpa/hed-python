@@ -1,7 +1,7 @@
 from defusedxml.lxml import parse
 from hed.converter import utils
 from hed.converter import constants
-
+from hed.converter import error_reporter
 
 class TagEntry:
     """This is a single entry in the tag dictionary.
@@ -12,15 +12,7 @@ class TagEntry:
     def __init__(self, short_org_tag, long_org_tag):
         self.short_org_tag = short_org_tag
         self.long_org_tag = long_org_tag
-
-    def get_tag_string(self, remainder, return_long_version=False):
-        tag_string = self.short_org_tag
-        if return_long_version:
-            tag_string = self.long_org_tag
-        if remainder:
-            return tag_string + remainder
-        return tag_string
-
+        self.long_clean_tag = long_org_tag.lower()
 
 class TagCompare:
     """     Helper class for seeing if a schema has any duplicate tags, and also has functions to convert
@@ -62,8 +54,6 @@ class TagCompare:
                     self.tag_name_stack.append(elem.text)
                     self._add_tag(elem.text, self.tag_name_stack)
 
-        self._finalize_processing()
-
     def convert_hed_string_to_short(self, hed_string):
         """ Convert a hed string from any form to the shortest.
 
@@ -80,22 +70,18 @@ class TagCompare:
         """
         hed_tags = self._split_hed_string(hed_string)
         final_string = ""
+        errors = []
         for is_hed_tag, (startpos, endpos) in hed_tags:
             tag = hed_string[startpos:endpos]
             if is_hed_tag:
-                tag_entry, remainder = self.get_tag_entry(tag)
-                # This is notably faster "inline" rather than calling a conversion function
-                converted_tag = None
-                if tag_entry:
-                    converted_tag = tag_entry.short_org_tag + remainder
-
-                if converted_tag is None:
-                    converted_tag = tag
-                final_string += converted_tag
+                short_tag_string, single_error = self.convert_to_short_tag(tag)
+                if single_error:
+                    errors.append(single_error)
+                final_string += short_tag_string
             else:
                 final_string += tag
 
-        return final_string
+        return final_string, errors
 
     def convert_hed_string_to_long(self, hed_string):
         """ Convert a hed string from any form to the longest.
@@ -113,100 +99,149 @@ class TagCompare:
         """
         hed_tags = self._split_hed_string(hed_string)
         final_string = ""
+        errors = []
         for is_hed_tag, (startpos, endpos) in hed_tags:
             tag = hed_string[startpos:endpos]
             if is_hed_tag:
-                tag_entry, remainder = self.get_tag_entry(tag)
-                # This is notably faster "inline" rather than calling a conversion function
-                converted_tag = None
-                if tag_entry:
-                    converted_tag = tag_entry.long_org_tag + remainder
-
-                if converted_tag is None:
-                    converted_tag = tag
+                converted_tag, single_error = self.convert_to_long_tag(tag)
+                if single_error:
+                    errors.append(single_error)
                 final_string += converted_tag
             else:
                 final_string += tag
 
-        return final_string
+        return final_string, errors
 
     def convert_to_long_tag(self, hed_tag):
-        """Convert a single tag from any form to the longest form
+        """This takes a hed tag(short or long form) and converts it to the long form
+            Works left to right.(mostly relevant for errors)
+            Note: This only does minimal validation
 
-            eg  Event/Sensory event -> Event/Sensory event
-                Sensory event -> Event/Sensory event
-         Parameters
-            ----------
-            hed_tag: str
-                a single hed tag
-            Returns
-            -------
-                str: The converted tag
-        """
-        tag_entry, remainder = self.get_tag_entry(hed_tag)
-        if tag_entry:
-            final_tag = tag_entry.get_tag_string(remainder, return_long_version=True)
-            return final_tag
-
-        return None
-
-    def convert_to_short_tag(self, hed_tag):
-        """Convert a single tag from any form to the shortest form
-
-            eg  Event/Sensory event -> Sensory event
-                Sensory event -> Sensory event
-         Parameters
-            ----------
-            hed_tag: str
-                a single hed tag
-            Returns
-            -------
-                str: The converted tag
-        """
-        tag_entry, remainder = self.get_tag_entry(hed_tag)
-        if tag_entry:
-            final_tag = tag_entry.get_tag_string(remainder)
-            return final_tag
-
-        return None
-
-    def get_tag_entry(self, hed_tag):
-        """This takes a hed tag(short or long form) and finds the lowest level valid tag_entry.
-            Note: NO validation is done for if tags take value or allow extensions, the following is just examples.
-
-            eg 'Event'                    - Returns (entry for 'Event', "")
-               'Event/Sensory event'      - Returns (entry for 'Sensory event', "")
+            eg 'Event'                    - Returns ('Event', None)
+               'Sensory event'            - Returns ('Event/Sensory event', None)
             Takes Value:
-               'Item/Sound/Environmental sound/Unique Value'
-                                          - Returns (entry for 'Environmental Sound', "Unique Value")
+               'Environmental sound/Unique Value'
+                                          - Returns ('Item/Sound/Environmental Sound/Unique Value', None)
             Extension Allowed:
                 'Experiment control/demo_extension'
-                                          - Returns (entry for 'Experiment Control', "demo_extension")
-                'Event/Experiment control/demo_extension/second_part'
-                                          - Returns (entry for 'Experiment Control', "demo_extension/second_part")
+                                          - Returns ('Event/Experiment Control/demo_extension/', None)
+                'Experiment control/demo_extension/second_part'
+                                          - Returns ('Event/Experiment Control/demo_extension/second_part', None)
 
             Returns
             -------
-            tuple.  (tag_entry, remainder of tag).  If not found, (None, None)
+            tuple.  (long_tag, error).  If not found, (original_tag, error)
 
         """
         if not self.no_duplicate_tags:
             raise ValueError("Cannot process tags when duplicate tags exist in schema.")
 
         clean_tag = hed_tag.lower()
-        if clean_tag in self.tag_dict:
-            return self.tag_dict[clean_tag], ""
+        split_tags = clean_tag.split("/")
 
-        found_index = clean_tag.rfind("/")
-        while found_index != -1:
-            check_tag = clean_tag[:found_index]
-            remainder = hed_tag[found_index:]
-            if check_tag in self.tag_dict:
-                return self.tag_dict[check_tag], remainder
+        index_end = 0
+        found_unknown_extension = False
+        found_index_end = 0
+        found_tag_entry = None
+        for tag in split_tags:
+            tag_len = len(tag)
+            # Skip slashes
+            if index_end != 0:
+                index_end += 1
+            index_start = index_end
+            index_end += tag_len
 
-            found_index = clean_tag.rfind("/", 0, found_index)
+            if not found_unknown_extension:
+                if tag not in self.tag_dict:
+                    found_unknown_extension = True
+                    if not found_tag_entry:
+                        error = error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND, hed_tag,
+                                                                 index_start, index_end)
+                        return hed_tag, error
+                    continue
 
-        return None, None
+                tag_entry = self.tag_dict[tag]
+                tag_string = tag_entry.long_clean_tag
+                main_hed_portion = clean_tag[:index_end]
+
+                if not tag_string.endswith(main_hed_portion):
+                    error = error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, hed_tag,
+                                                             index_start, index_end,
+                                                             tag_entry.long_org_tag)
+                    return hed_tag, error
+                found_index_end = index_end
+                found_tag_entry = tag_entry
+            else:
+                # These means we found a known tag in the remainder/extension section, which is an error
+                if tag in self.tag_dict:
+                    error = error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, hed_tag,
+                                                             index_start, index_end,
+                                                             self.tag_dict[tag].long_org_tag)
+                    return hed_tag, error
+
+        remainder = hed_tag[found_index_end:]
+
+        long_tag_string = found_tag_entry.long_org_tag + remainder
+        return long_tag_string, None
+
+    def convert_to_short_tag(self, hed_tag):
+        """This takes a hed tag(short or long form) and converts it to the long form
+            Works right to left.(mostly relevant for errors)
+            Note: This only does minimal validation
+
+            eg 'Event'                    - Returns ('Event', None)
+               'Event/Sensory event'      - Returns (Sensory event', None)
+            Takes Value:
+               'Item/Sound/Environmental sound/Unique Value'
+                                          - Returns ('Environmental Sound/Unique Value', None)
+            Extension Allowed:
+                'Event/Experiment control/demo_extension'
+                                          - Returns ('Experiment Control/demo_extension/', None)
+                'Event/Experiment control/demo_extension/second_part'
+                                          - Returns ('Experiment Control/demo_extension/second_part', None)
+
+            Returns
+            -------
+            tuple.  (short_tag, None or error).  If not found, (original_tag, error)
+
+        """
+        if not self.no_duplicate_tags:
+            raise ValueError("Cannot process tags when duplicate tags exist in schema.")
+
+        clean_tag = hed_tag.lower()
+        split_tag = clean_tag.split("/")
+
+        found_tag_entry = None
+        index = len(hed_tag)
+        last_found_index = index
+        for tag in reversed(split_tag):
+            if tag in self.tag_dict:
+                found_tag_entry = self.tag_dict[tag]
+                last_found_index = index
+                index -= len(tag)
+                break
+
+            last_found_index = index
+            index -= len(tag)
+            # Skip slashes
+            if index != 0:
+                index -= 1
+
+
+        if found_tag_entry is None:
+            error = error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND, hed_tag, index, last_found_index)
+            return hed_tag, error
+
+        main_hed_portion = clean_tag[:last_found_index]
+        tag_string = found_tag_entry.long_clean_tag
+        if not tag_string.endswith(main_hed_portion):
+            error = error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, hed_tag, index, last_found_index,
+                                                     found_tag_entry.long_org_tag)
+            return hed_tag, error
+
+        remainder = hed_tag[last_found_index:]
+        short_tag_string = found_tag_entry.short_org_tag + remainder
+        return short_tag_string, None
 
     def has_duplicate_tags(self):
         """Converting functions don't make much sense to work if we have duplicate tags and are disabled"""
@@ -243,24 +278,6 @@ class TagCompare:
         """Utility function that prints the human readable form of duplicate tags to console."""
         for line in self.dupe_tag_iter(True):
             print(line)
-
-    def _finalize_processing(self):
-        if not self.has_duplicate_tags():
-            # Also add every intermediate version of every tag.
-            # eg: Attribute/Sensory/Visual/Color should also add:
-            # Color, Visual/Color, Sensory/Visual/Color
-            new_entries = {}
-            for tag_entry in self.tag_dict.values():
-                clean_tag = tag_entry.long_org_tag.lower()
-                slash_delimiter = '/'
-                found_index = clean_tag.find(slash_delimiter)
-                while found_index != -1:
-                    new_clean_tag = clean_tag[found_index + 1:]
-                    new_entries[clean_tag] = tag_entry
-                    clean_tag = new_clean_tag
-                    found_index = clean_tag.find(slash_delimiter)
-
-            self.tag_dict.update(new_entries)
 
     def _reset_tag_compare(self):
         self.tag_name_stack = []
@@ -307,7 +324,7 @@ class TagCompare:
         list of tuples.
             each tuple: (is_hed_tag, (start_pos, end_pos))
             is_hed_tag: bool
-                This is a hed tag if true, delimiter if not
+                This is a (possible) hed tag if true, delimiter if not
             start_pos: int
                 index of start of string in hed_string
             end_pos: int
@@ -318,7 +335,7 @@ class TagCompare:
         inside_d = True
         result_positions = []
         start_pos = None
-        last_end_pos = None
+        last_end_pos = 0
         for i, char in enumerate(hed_string):
             if char == " ":
                 current_spacing += 1
@@ -338,7 +355,8 @@ class TagCompare:
             # If we have a current delimiter, end it here.
             if inside_d and last_end_pos is not None:
                 # view_string = hed_string[last_end_pos: i]
-                result_positions.append((False, (last_end_pos, i)))
+                if last_end_pos != i:
+                    result_positions.append((False, (last_end_pos, i)))
                 last_end_pos = None
 
             current_spacing = 0
@@ -352,6 +370,8 @@ class TagCompare:
         if start_pos is not None:
             # view_string = hed_string[start_pos: len(hed_string)]
             result_positions.append((True, (start_pos, len(hed_string) - current_spacing)))
+            if current_spacing:
+                result_positions.append((False, (len(hed_string) - current_spacing, len(hed_string))))
 
         # debug_result_strings = [hed_string[startpos:endpos] for (is_hed_string, (startpos, endpos)) in result_positions]
         return result_positions

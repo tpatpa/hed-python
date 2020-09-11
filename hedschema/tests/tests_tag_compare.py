@@ -1,7 +1,7 @@
 import unittest
 import os
 from hed.converter.tag_compare import TagCompare
-
+from hed.converter import error_reporter
 
 class Test(unittest.TestCase):
     schema_file = 'data/reduced_no_dupe.xml'
@@ -12,125 +12,275 @@ class Test(unittest.TestCase):
         cls.tag_compare = TagCompare(hed_xml)
         cls.tag_compare.print_tag_dict()
 
-    def compare_base(self, input_tags, output_tags, test_function):
-        for input_tag, output_tag in zip(input_tags, output_tags):
-            converted_tag = test_function(input_tag)
+    def compare_base_new(self, test_function, input_strings, expected_results, errors_list=None):
+        # Assume there are no errors if none provided.
+        check_errors = True
+        if errors_list is None:
+            errors_list = []
+        while len(errors_list) < len(input_strings):
+            check_errors = False
+            errors_list.append(None)
+
+        for input_tag, output_tag, errors in zip(input_strings, expected_results, errors_list):
+            converted_tag, actual_errors = test_function(input_tag)
 
             self.assertEqual(output_tag, converted_tag)
+            if check_errors:
+                self.assertEqual(errors, actual_errors)
+            else:
+                self.assertFalse(actual_errors)
 
-    def test_basic_strings(self):
+    def test_empty_strings(self):
+        test_strings = [
+            ''
+        ]
+        expected_results = [
+            ''
+        ]
+        errors_list = [
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND, '', 0, 0)
+        ]
+
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_long(self):
         test_strings = [
             'Event',
             'Sensory event',
-        ]
-        expected_results = [
-            'Event',
-            'Event/Sensory event',
-        ]
-
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_to_long_tag)
-
-    def test_basic_long_to_short(self):
-        test_strings = [
-            'Event',
-            'Event/Sensory event',
-        ]
-        expected_results = [
-            'Event',
-            'Sensory event',
-        ]
-
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_to_short_tag)
-
-    def test_takes_value(self):
-        test_strings = [
-            'Environmental sound/Unique Value'
-        ]
-        expected_results = [
-            'Item/Sound/Environmental sound/Unique Value'
-        ]
-
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_to_long_tag)
-
-    def test_takes_value2(self):
-        test_strings = [
-            'Item/Sound/Environmental sound/Unique Value'
-        ]
-        expected_results = [
-            'Environmental sound/Unique Value'
-        ]
-
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_to_short_tag)
-
-    def test_invalid_takes_value(self):
-        # Note these are cases where we produce invalid tags as there is no validation
-        # This is expected behavior.
-        test_strings = [
-            'Item/Sound/Environmental sound/Event',
-            'Item/Sound/Environmental sound/Long Unique Value With/Slash Marks'
-        ]
-        expected_results = [
-            'Environmental sound/Event',
-            'Environmental sound/Long Unique Value With/Slash Marks'
-        ]
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_to_short_tag)
-
-    def test_short_to_long(self):
-        test_strings = [
             'Item/Object/Geometric',
             'Object/Geometric'
         ]
         expected_results = [
+            'Event',
+            'Event/Sensory event',
             'Item/Object/Geometric',
             'Item/Object/Geometric'
         ]
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_to_long_tag)
+        errors_list = [
+            None,
+            None,
+            None,
+            None
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
 
-    def test_long_to_short(self):
+    def test_tag_short(self):
         test_strings = [
+            'Event',
+            'Event/Sensory event',
             'Item/Object/Geometric',
             'Object/Geometric'
         ]
         expected_results = [
+            'Event',
+            'Sensory event',
             'Geometric',
             'Geometric'
         ]
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_to_short_tag)
+        errors_list = [
+            None,
+            None,
+            None,
+            None
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
 
-    def test_extension_allowed(self):
+    def test_tag_long_takes_value(self):
         test_strings = [
-            'Event/Experiment control/extended lvl1',
+            'Environmental sound/Unique Value'
         ]
         expected_results = [
-            'Experiment control/extended lvl1',
+            'Item/Sound/Environmental sound/Unique Value'
         ]
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_to_short_tag)
 
-    def test_extension_allowed_2_levels(self):
+        errors_list = [
+            None
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_short_takes_value(self):
         test_strings = [
+            'Item/Sound/Environmental sound/Unique Value',
+            'Sound/Environmental sound/Long Unique Value With/Slash Marks',
+
+        ]
+        expected_results = [
+            'Environmental sound/Unique Value',
+            'Environmental sound/Long Unique Value With/Slash Marks'
+        ]
+
+        errors_list = [
+            None,
+            None
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_short_takes_value_invalid(self):
+        test_strings = [
+            'Item/Sound/Environmental sound/Event'
+        ]
+        expected_results = [
+            'Item/Sound/Environmental sound/Event'
+        ]
+        errors_list = [
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, 'Item/Sound/Environmental sound/Event', 31, 36,
+                                             'Event')
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_short_spaces_start_end(self):
+        test_strings = [
+            ' Environmental sound/Unique Value',
+            'Environmental sound/Unique Value ',
+        ]
+        expected_results = [
+            ' Environmental sound/Unique Value',
+            'Item/Sound/Environmental sound/Unique Value '
+        ]
+
+        errors_list = [
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND, ' Environmental sound/Unique Value',
+                                             0, 20),
+            None
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_short_extension_allowed(self):
+        test_strings = [
+            'Event/Experiment control/extended lvl1',
             'Event/Experiment control/extended lvl1/Extension2',
         ]
         expected_results = [
+            'Experiment control/extended lvl1',
             'Experiment control/extended lvl1/Extension2',
         ]
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_to_short_tag)
+        errors_list = [
+            None,
+            None
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
 
-    def test_invalid_extension(self):
-        # Note these are cases where we produce invalid tags as there is no validation
-        # This is expected behavior.
+    def test_tag_long_extension_allowed(self):
+        test_strings = [
+            'Experiment control/extended lvl1',
+            'Experiment control/extended lvl1/Extension2',
+        ]
+        expected_results = [
+            'Event/Experiment control/extended lvl1',
+            'Event/Experiment control/extended lvl1/Extension2',
+        ]
+        errors_list = [
+            None,
+            None
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_short_invalid_extension(self):
         test_strings = [
             'Event/Experiment control/Geometric',
             'Event/Experiment control/Geometric/Event',
+            'Event/Experiment control/valid extension',
+            'Event/Experiment control/valid extension followed by invalid/Event',
+        ]
+        expected_results = [
+            'Event/Experiment control/Geometric',
+            'Event/Experiment control/Geometric/Event',
+            'Experiment control/valid extension',
+            'Event/Experiment control/valid extension followed by invalid/Event',
+        ]
+        errors_list = [
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, 'Event/Experiment control/Geometric',
+                                             25, 34,
+                                             'Item/Object/Geometric'),
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, 'Event/Experiment control/Geometric/Event',
+                                             35, 40,
+                                             'Event'),
+            None,
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, 'Event/Experiment control/valid extension followed by invalid/Event',
+                                             61, 66,
+                                             'Event'),
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_long_invalid_extension(self):
+        test_strings = [
+            'Experiment control/Geometric',
+            'Experiment control/Geometric/Event',
+            'Event/Experiment control/valid extension',
+            'Experiment control/valid extension followed by invalid/Event',
         ]
         expected_results = [
             'Experiment control/Geometric',
-            'Experiment control/Geometric/Event'
+            'Experiment control/Geometric/Event',
+            'Event/Experiment control/valid extension',
+            'Experiment control/valid extension followed by invalid/Event',
         ]
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_to_short_tag)
+        errors_list = [
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, 'Experiment control/Geometric',
+                                             19, 28,
+                                             'Item/Object/Geometric'),
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, 'Experiment control/Geometric/Event',
+                                             19, 28,
+                                             'Item/Object/Geometric'),
+            None,
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, 'Experiment control/valid extension followed by invalid/Event',
+                                             55, 60,
+                                             'Event'),
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
 
-    def test_extension_allowed_cascade(self):
-        """Note we now assume all nodes are extension allowed.
-        """
+    def test_tag_short_invalid(self):
+        test_strings = [
+            'InvalidEvent/Experiment control/Geometric',
+            'Event/InvalidEvent/Geometric',
+            'InvalidEvent',
+            'InvalidEvent/InvalidExtension'
+        ]
+        expected_results = [
+            'InvalidEvent/Experiment control/Geometric',
+            'Event/InvalidEvent/Geometric',
+            'InvalidEvent',
+            'InvalidEvent/InvalidExtension'
+        ]
+        errors_list = [
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE,
+                                             'InvalidEvent/Experiment control/Geometric', 32, 41,
+                                             'Item/Object/Geometric'),
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE,
+                                             'Event/InvalidEvent/Geometric', 19, 28,
+                                             'Item/Object/Geometric'),
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                             'InvalidEvent', 0, 12),
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                             'InvalidEvent/InvalidExtension', 0, 12),
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_long_invalid(self):
+        test_strings = [
+            'InvalidEvent',
+            'InvalidEvent/InvalidExtension',
+            'InvalidEvent/Event'
+        ]
+        expected_results = [
+            'InvalidEvent',
+            'InvalidEvent/InvalidExtension',
+            'InvalidEvent/Event'
+        ]
+        errors_list = [
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                             'InvalidEvent', 0, 12),
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                             'InvalidEvent/InvalidExtension', 0, 12),
+
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                             'InvalidEvent/Event', 0, 12),
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_short_extension_cascade(self):
+        """Note we now assume all nodes are extension allowed."""
         test_strings = [
             'Participant/Trait/Age/15',
             'Participant/Emotional state/Awed/Invalid Non Cascade Extension',
@@ -145,9 +295,35 @@ class Test(unittest.TestCase):
             'Siren',
             'Trait/NewTraitTest'
         ]
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_to_short_tag)
+        errors_list = [
 
-    def test_groups_short_to_long(self):
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_long_extension_cascade(self):
+        """Note we now assume all nodes are extension allowed."""
+        test_strings = [
+            'Age/15',
+            'Awed/Invalid Non Cascade Extension',
+            'Siren/Invalid Extension',
+            'Siren',
+            'Trait/NewTraitTest'
+
+        ]
+        expected_results = [
+            'Participant/Trait/Age/15',
+            'Participant/Emotional state/Awed/Invalid Non Cascade Extension',
+            'Item/Sound/Siren/Invalid Extension',
+            'Item/Sound/Siren',
+            'Participant/Trait/NewTraitTest'
+        ]
+        errors_list = [
+
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
+
+    # Tests below here test the string functions.  We probably will want more.
+    def test_string_long(self):
         test_strings = {'noTildeGroup': 'Sensory event,'
                                             '(Siren,Sensory event)',
                             'oneTildeGroup': 'Sensory event,'
@@ -173,9 +349,12 @@ class Test(unittest.TestCase):
         test_strings = test_strings.values()
         expected_results = expected_results.values()
 
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_hed_string_to_long)
+        errors_list = [
 
-    def test_groups_long_to_short(self):
+        ]
+        self.compare_base_new(self.tag_compare.convert_hed_string_to_long, test_strings, expected_results, errors_list)
+
+    def test_string_short(self):
         test_strings = {
                         'noTildeGroup': 'Event/Sensory event,'
                                         '(Item/Sound/Siren,Event/Sensory event)',
@@ -204,8 +383,92 @@ class Test(unittest.TestCase):
         test_strings = test_strings.values()
         expected_results = expected_results.values()
 
-        self.compare_base(test_strings, expected_results, self.tag_compare.convert_hed_string_to_short)
+        errors_list = [
 
+        ]
+        self.compare_base_new(self.tag_compare.convert_hed_string_to_short, test_strings, expected_results, errors_list)
+
+    def test_string_short_invalid(self):
+        test_strings = [
+            'InvalidEvent',
+            'InvalidEvent/InvalidExtension',
+            'InvalidEvent, InvalidEvent/InvalidExtension',
+        ]
+        expected_results = [
+            'InvalidEvent',
+            'InvalidEvent/InvalidExtension',
+            'InvalidEvent, InvalidEvent/InvalidExtension'
+        ]
+
+        errors_list = [
+            [error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                             'InvalidEvent', 0, 12),],
+            [error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                              'InvalidEvent/InvalidExtension', 0, 12), ],
+
+            [error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                             'InvalidEvent', 0, 12),
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                              'InvalidEvent/InvalidExtension', 0, 12), ]
+        ]
+        self.compare_base_new(self.tag_compare.convert_hed_string_to_short, test_strings, expected_results, errors_list)
+
+    def test_invalid_tag_group2(self):
+        test_strings = [
+            'InvalidEvent',
+            'InvalidEvent/InvalidExtension',
+            'InvalidEvent, InvalidEvent/InvalidExtension'
+        ]
+        expected_results = [
+            'InvalidEvent',
+            'InvalidEvent/InvalidExtension',
+            'InvalidEvent, InvalidEvent/InvalidExtension'
+        ]
+
+        errors_list = [
+            [error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                              'InvalidEvent', 0, 12), ],
+            [error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                              'InvalidEvent/InvalidExtension', 0, 12), ],
+
+            [error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                              'InvalidEvent', 0, 12),
+             error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND,
+                                              'InvalidEvent/InvalidExtension', 0, 12), ]
+        ]
+        self.compare_base_new(self.tag_compare.convert_hed_string_to_long, test_strings, expected_results, errors_list)
+
+
+
+    def test_spaces_at_start_and_end_groups(self):
+        test_strings = [
+            ' Environmental sound/Unique Value',
+            'Environmental sound/Unique Value ',
+        ]
+        expected_results = [
+            ' Item/Sound/Environmental sound/Unique Value',
+            'Item/Sound/Environmental sound/Unique Value '
+        ]
+
+        errors_list = [
+
+        ]
+        self.compare_base_new(self.tag_compare.convert_hed_string_to_long, test_strings, expected_results, errors_list)
+
+    def test_spaces_at_start_and_end_groups2(self):
+        test_strings = [
+            ' Item/Sound/Environmental sound/Unique Value',
+            'Item/Sound/Environmental sound/Unique Value '
+        ]
+        expected_results = [
+            ' Environmental sound/Unique Value',
+            'Environmental sound/Unique Value ',
+        ]
+
+        errors_list = [
+
+        ]
+        self.compare_base_new(self.tag_compare.convert_hed_string_to_short, test_strings, expected_results, errors_list)
 
 if __name__ == "__main__":
     unittest.main()
