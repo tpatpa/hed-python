@@ -30,6 +30,12 @@ class Test(unittest.TestCase):
             else:
                 self.assertFalse(actual_errors)
 
+    def compare_split_results(self, input_strings, expected_results):
+        for input_tag, result in zip(input_strings, expected_results):
+            actual_results = self.tag_compare._split_hed_string(input_tag)
+            decoded_results = [input_tag[start:end] for (is_tag, (start, end)) in actual_results]
+            self.assertEqual(result, decoded_results)
+
     def test_empty_strings(self):
         test_strings = [
             ''
@@ -304,21 +310,171 @@ class Test(unittest.TestCase):
         """Note we now assume all nodes are extension allowed."""
         test_strings = [
             'Age/15',
-            'Awed/Invalid Non Cascade Extension',
-            'Siren/Invalid Extension',
+            'Awed/Cascade Extension',
+            'Siren/Extension',
             'Siren',
             'Trait/NewTraitTest'
 
         ]
         expected_results = [
             'Participant/Trait/Age/15',
-            'Participant/Emotional state/Awed/Invalid Non Cascade Extension',
-            'Item/Sound/Siren/Invalid Extension',
+            'Participant/Emotional state/Awed/Cascade Extension',
+            'Item/Sound/Siren/Extension',
             'Item/Sound/Siren',
             'Participant/Trait/NewTraitTest'
         ]
         errors_list = [
 
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_short_slash_at_start(self):
+        test_strings = [
+            '/Event/Extension',
+            '/Item/Sound/Siren',
+            '/Item/Sound/Siren/Extension'
+        ]
+        expected_results = [
+            '/Event/Extension',
+            '/Item/Sound/Siren',
+            '/Item/Sound/Siren/Extension'
+        ]
+        errors_list = [
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, '/Event/Extension', 1, 6, 'Event'),
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, '/Item/Sound/Siren', 12, 17, 'Item/Sound/Siren'),
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, '/Item/Sound/Siren/Extension', 12, 17, 'Item/Sound/Siren')
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_long_slash_at_start(self):
+        test_strings = [
+            '/Event/Extension',
+            '/Item/Sound/Siren',
+            '/Item/Sound/Siren/Extension'
+        ]
+        expected_results = [
+            '/Event/Extension',
+            '/Item/Sound/Siren',
+            '/Item/Sound/Siren/Extension'
+        ]
+        errors_list = [
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND, '/Event/Extension', 0, 0),
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND, '/Item/Sound/Siren', 0, 0),
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND, '/Item/Sound/Siren/Extension', 0, 0)
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_short_slash_at_end(self):
+        test_strings = [
+            'Event/Extension/',
+            'Item/Sound/Siren/',
+            'Item/Sound/Siren/Extension/'
+        ]
+        expected_results = [
+            'Event/Extension/',
+            'Siren/',
+            'Siren/Extension/'
+        ]
+        errors_list = [
+            None,
+            None,
+            None
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_long_slash_at_end(self):
+        test_strings = [
+            'Event/Extension/',
+            'Item/Sound/Siren/',
+            'Item/Sound/Siren/Extension/'
+        ]
+        expected_results = [
+            'Event/Extension/',
+            'Item/Sound/Siren/',
+            'Item/Sound/Siren/Extension/'
+        ]
+        errors_list = [
+            None,
+            None,
+            None
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_short_doubleslash(self):
+        test_strings = [
+            'Event//Extension',
+            'Item//Sound/Siren',
+            'Item/Sound//Siren/Extension',
+            'Item/Sound/Siren//Extension'
+        ]
+        expected_results = [
+            'Event//Extension',
+            'Item//Sound/Siren',
+            'Item/Sound//Siren/Extension',
+            'Siren//Extension'
+        ]
+        errors_list = [
+            None,
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, 'Item//Sound/Siren', 12, 17, 'Item/Sound/Siren'),
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, 'Item/Sound//Siren/Extension', 12, 17, 'Item/Sound/Siren'),
+            None
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_long_doubleslash(self):
+        test_strings = [
+            'Event//Extension',
+            'Item//Sound/Siren',
+            'Item/Sound//Siren/Extension',
+            'Item/Sound/Siren//Extension'
+        ]
+        expected_results = [
+            'Event//Extension',
+            'Item//Sound/Siren',
+            'Item/Sound//Siren/Extension',
+            'Item/Sound/Siren//Extension'
+        ]
+        errors_list = [
+            None,
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, 'Item//Sound/Siren', 6, 11, 'Item/Sound'),
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, 'Item/Sound//Siren/Extension', 12, 17, 'Item/Sound/Siren'),
+            None
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_short_slash_all(self):
+        test_strings = [
+            '/Event//Extension/',
+            '/Item//Sound//Siren/',
+            '/Item//Sound//Siren//Extension/'
+        ]
+        expected_results = [
+            '/Event//Extension/',
+            '/Item//Sound//Siren/',
+            '/Item//Sound//Siren//Extension/'
+        ]
+        errors_list = [
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, '/Event//Extension/', 1, 6, 'Event'),
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, '/Item//Sound//Siren/', 14, 19, 'Item/Sound/Siren'),
+            error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, '/Item//Sound//Siren//Extension/', 14, 19, 'Item/Sound/Siren'),
+        ]
+        self.compare_base_new(self.tag_compare.convert_to_short_tag, test_strings, expected_results, errors_list)
+
+    def test_tag_long_slash_all(self):
+        test_strings = [
+            '/Event//Extension/',
+            '/Item//Sound//Siren/',
+            '/Item//Sound//Siren//Extension/'
+        ]
+        expected_results = [
+            '/Event//Extension/',
+            '/Item//Sound//Siren/',
+            '/Item//Sound//Siren//Extension/'
+        ]
+        errors_list = [
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND, '/Event//Extension/', 0, 0),
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND, '/Item//Sound//Siren/', 0, 0),
+            error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND, '/Item//Sound//Siren//Extension/', 0, 0),
         ]
         self.compare_base_new(self.tag_compare.convert_to_long_tag, test_strings, expected_results, errors_list)
 
@@ -413,7 +569,7 @@ class Test(unittest.TestCase):
         ]
         self.compare_base_new(self.tag_compare.convert_hed_string_to_short, test_strings, expected_results, errors_list)
 
-    def test_invalid_tag_group2(self):
+    def test_string_long_invalid(self):
         test_strings = [
             'InvalidEvent',
             'InvalidEvent/InvalidExtension',
@@ -438,9 +594,7 @@ class Test(unittest.TestCase):
         ]
         self.compare_base_new(self.tag_compare.convert_hed_string_to_long, test_strings, expected_results, errors_list)
 
-
-
-    def test_spaces_at_start_and_end_groups(self):
+    def test_string_long_spaces_start_end(self):
         test_strings = [
             ' Environmental sound/Unique Value',
             'Environmental sound/Unique Value ',
@@ -455,7 +609,7 @@ class Test(unittest.TestCase):
         ]
         self.compare_base_new(self.tag_compare.convert_hed_string_to_long, test_strings, expected_results, errors_list)
 
-    def test_spaces_at_start_and_end_groups2(self):
+    def test_string_short_spaces_start_end(self):
         test_strings = [
             ' Item/Sound/Environmental sound/Unique Value',
             'Item/Sound/Environmental sound/Unique Value '
@@ -464,11 +618,28 @@ class Test(unittest.TestCase):
             ' Environmental sound/Unique Value',
             'Environmental sound/Unique Value ',
         ]
-
         errors_list = [
 
         ]
         self.compare_base_new(self.tag_compare.convert_hed_string_to_short, test_strings, expected_results, errors_list)
+
+    def test_split_hed_string(self):
+        test_strings = [
+            'Event',
+            'Event, Event/Extension',
+            'Event/Extension, (Event/Extension2, Event/Extension3)',
+            'Event/Extension, (Event, ,Event/Extension3)',
+            'Event/Extension,(((((Event/Extension2, )(Event)',
+        ]
+        expected_results = [
+            ['Event'],
+            ['Event', ', ', 'Event/Extension'],
+            ['Event/Extension', ', (', 'Event/Extension2', ', ', 'Event/Extension3', ')'],
+            ['Event/Extension', ', (', 'Event', ', ,', 'Event/Extension3', ')'],
+            ['Event/Extension', ',(((((', 'Event/Extension2', ', )(', 'Event', ')'],
+        ]
+
+        self.compare_split_results(test_strings, expected_results)
 
 if __name__ == "__main__":
     unittest.main()

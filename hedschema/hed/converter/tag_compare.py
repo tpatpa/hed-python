@@ -134,7 +134,8 @@ class TagCompare:
 
         """
         if not self.no_duplicate_tags:
-            raise ValueError("Cannot process tags when duplicate tags exist in schema.")
+            error = error_reporter.report_error_type(error_reporter.INVALID_SCHEMA, hed_tag, 0, len(hed_tag))
+            return hed_tag, error
 
         clean_tag = hed_tag.lower()
         split_tags = clean_tag.split("/")
@@ -206,7 +207,8 @@ class TagCompare:
 
         """
         if not self.no_duplicate_tags:
-            raise ValueError("Cannot process tags when duplicate tags exist in schema.")
+            error = error_reporter.report_error_type(error_reporter.INVALID_SCHEMA, hed_tag, 0, len(hed_tag))
+            return hed_tag, error
 
         clean_tag = hed_tag.lower()
         split_tag = clean_tag.split("/")
