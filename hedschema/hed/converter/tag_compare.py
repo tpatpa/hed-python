@@ -1,3 +1,4 @@
+import re
 from defusedxml.lxml import parse
 from hed.converter import utils
 from hed.converter import constants
@@ -18,6 +19,7 @@ class TagCompare:
     """     Helper class for seeing if a schema has any duplicate tags, and also has functions to convert
         hed strings and tags short<>long
        """
+    pattern = re.compile("[\s/]*/+[\s/]*")
 
     def __init__(self, hed_xml_file=None, hed_tree=None):
         self.parent_map = None
@@ -68,18 +70,30 @@ class TagCompare:
             -------
                 str: The converted string
         """
+        if not self.no_duplicate_tags:
+            error = error_reporter.report_error_type(error_reporter.INVALID_SCHEMA, hed_string, 0, len(hed_string))
+            return hed_string, [error]
+
+        hed_string = self._remove_slashes_and_spaces(hed_string)
+
+        errors = []
+        if hed_string == "":
+            errors.append(error_reporter.report_error_type(error_reporter.EMPTY_TAG_FOUND, ""))
+            return hed_string, errors
+
         hed_tags = self._split_hed_string(hed_string)
         final_string = ""
-        errors = []
+
         for is_hed_tag, (startpos, endpos) in hed_tags:
             tag = hed_string[startpos:endpos]
             if is_hed_tag:
-                short_tag_string, single_error = self.convert_to_short_tag(tag)
+                short_tag_string, single_error = self._convert_to_short_tag(tag)
                 if single_error:
                     errors.append(single_error)
                 final_string += short_tag_string
             else:
-                final_string += tag
+                no_spaces_delimeter = tag.replace(" ", "")
+                final_string += no_spaces_delimeter
 
         return final_string, errors
 
@@ -97,22 +111,33 @@ class TagCompare:
             -------
                 str: The converted string
         """
+        if not self.no_duplicate_tags:
+            error = error_reporter.report_error_type(error_reporter.INVALID_SCHEMA, hed_string, 0, len(hed_string))
+            return hed_string, [error]
+
+        hed_string = self._remove_slashes_and_spaces(hed_string)
+
+        errors = []
+        if hed_string == "":
+            errors.append(error_reporter.report_error_type(error_reporter.EMPTY_TAG_FOUND, ""))
+            return hed_string, errors
+
         hed_tags = self._split_hed_string(hed_string)
         final_string = ""
-        errors = []
         for is_hed_tag, (startpos, endpos) in hed_tags:
             tag = hed_string[startpos:endpos]
             if is_hed_tag:
-                converted_tag, single_error = self.convert_to_long_tag(tag)
+                converted_tag, single_error = self._convert_to_long_tag(tag)
                 if single_error:
                     errors.append(single_error)
                 final_string += converted_tag
             else:
-                final_string += tag
+                no_spaces_delimeter = tag.replace(" ", "")
+                final_string += no_spaces_delimeter
 
         return final_string, errors
 
-    def convert_to_long_tag(self, hed_tag):
+    def _convert_to_long_tag(self, hed_tag):
         """This takes a hed tag(short or long form) and converts it to the long form
             Works left to right.(mostly relevant for errors)
             Note: This only does minimal validation
@@ -133,9 +158,11 @@ class TagCompare:
             tuple.  (long_tag, error).  If not found, (original_tag, error)
 
         """
-        if not self.no_duplicate_tags:
-            error = error_reporter.report_error_type(error_reporter.INVALID_SCHEMA, hed_tag, 0, len(hed_tag))
-            return hed_tag, error
+        # Remove leading and trailing slashes
+        if hed_tag.startswith('/'):
+            hed_tag = hed_tag[1:]
+        if hed_tag.endswith('/'):
+            hed_tag = hed_tag[:-1]
 
         clean_tag = hed_tag.lower()
         split_tags = clean_tag.split("/")
@@ -144,6 +171,7 @@ class TagCompare:
         found_unknown_extension = False
         found_index_end = 0
         found_tag_entry = None
+        # Iterate over tags left to right keeping track of current index
         for tag in split_tags:
             tag_len = len(tag)
             # Skip slashes
@@ -152,6 +180,7 @@ class TagCompare:
             index_start = index_end
             index_end += tag_len
 
+            # If we already found an unknown tag, it's implicitly an extension.  No known tags can follow it.
             if not found_unknown_extension:
                 if tag not in self.tag_dict:
                     found_unknown_extension = True
@@ -165,6 +194,7 @@ class TagCompare:
                 tag_string = tag_entry.long_clean_tag
                 main_hed_portion = clean_tag[:index_end]
 
+                # Verify the tag has the correct path above it.
                 if not tag_string.endswith(main_hed_portion):
                     error = error_reporter.report_error_type(error_reporter.INVALID_PARENT_NODE, hed_tag,
                                                              index_start, index_end,
@@ -185,7 +215,7 @@ class TagCompare:
         long_tag_string = found_tag_entry.long_org_tag + remainder
         return long_tag_string, None
 
-    def convert_to_short_tag(self, hed_tag):
+    def _convert_to_short_tag(self, hed_tag):
         """This takes a hed tag(short or long form) and converts it to the long form
             Works right to left.(mostly relevant for errors)
             Note: This only does minimal validation
@@ -206,9 +236,11 @@ class TagCompare:
             tuple.  (short_tag, None or error).  If not found, (original_tag, error)
 
         """
-        if not self.no_duplicate_tags:
-            error = error_reporter.report_error_type(error_reporter.INVALID_SCHEMA, hed_tag, 0, len(hed_tag))
-            return hed_tag, error
+        # Remove leading and trailing slashes
+        if hed_tag.startswith('/'):
+            hed_tag = hed_tag[1:]
+        if hed_tag.endswith('/'):
+            hed_tag = hed_tag[:-1]
 
         clean_tag = hed_tag.lower()
         split_tag = clean_tag.split("/")
@@ -216,7 +248,9 @@ class TagCompare:
         found_tag_entry = None
         index = len(hed_tag)
         last_found_index = index
+        # Iterate over tags right to left keeping track of current character index
         for tag in reversed(split_tag):
+            # As soon as we find a non extension tag, mark down the index and bail.
             if tag in self.tag_dict:
                 found_tag_entry = self.tag_dict[tag]
                 last_found_index = index
@@ -229,11 +263,11 @@ class TagCompare:
             if index != 0:
                 index -= 1
 
-
         if found_tag_entry is None:
             error = error_reporter.report_error_type(error_reporter.NO_VALID_TAG_FOUND, hed_tag, index, last_found_index)
             return hed_tag, error
 
+        # Verify the tag has the correct path above it.
         main_hed_portion = clean_tag[:last_found_index]
         tag_string = found_tag_entry.long_clean_tag
         if not tag_string.endswith(main_hed_portion):
@@ -310,6 +344,19 @@ class TagCompare:
             parent_elem = self.parent_map[parent_elem]
 
         return nodes_in_parent
+
+    @staticmethod
+    def _remove_slashes_and_spaces(hed_string):
+        """This handles removing extra slashes, and spaces around slashes.
+
+            Takes and returns a (hed) string.
+            Examples:   '//' -> '/'
+                        'Event//Extension' -> 'Event/Extension'
+                        'Event  //Extension' -> 'Event/Extension'
+
+        """
+        simplified_string = TagCompare.pattern.sub('/', hed_string)
+        return simplified_string
 
     @staticmethod
     def _split_hed_string(hed_string):
