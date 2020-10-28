@@ -4,19 +4,16 @@ import tempfile
 import traceback
 import urllib
 from flask import jsonify, Response
-from werkzeug.utils import secure_filename
 from flask import current_app
-from logging.handlers import RotatingFileHandler
-from logging import ERROR
 
 from hed.webconverter.constants.other import file_extension_constants
 from hed.webconverter.constants.error import error_constants
 from hed.webconverter.constants.form import conversion_arg_constants, js_form_constants
 
 from hed.schema import xml2wiki, wiki2xml
-from hed.schema.utils import SchemaError
-from hed.utilities import map_schema
-from hed.schema import constants as converter_constants
+from hed.schema.util.utils import SchemaError
+from hed.utilities.util import map_schema
+from hed.schema.util import constants as converter_constants
 
 UPLOAD_DIRECTORY_KEY = 'UPLOAD_FOLDER'
 

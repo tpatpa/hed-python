@@ -4,8 +4,7 @@ import shutil
 from hed.webconverter import utils
 from hed.webconverter.app_factory import AppFactory
 from hed.webconverter.constants.other import file_extension_constants
-from hed.schema import constants
-
+from hed.schema.util import constants
 
 import os
 
