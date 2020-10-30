@@ -1,12 +1,15 @@
 import unittest
 import shutil
+import os
 
 from hed.webconverter import utils
 from hed.webconverter.app_factory import AppFactory
 from hed.webconverter.constants.other import file_extension_constants
-from hed.schema.util import constants
 
-import os
+import hed.util.file_util
+from hed.shared import web_utils
+from hed.schematools import constants
+
 
 class Test(unittest.TestCase):
     @classmethod
@@ -26,7 +29,7 @@ class Test(unittest.TestCase):
         with app.app_context():
             from hed.webconverter.routes import route_blueprint
             app.register_blueprint(route_blueprint)
-            utils.create_upload_directory(cls.upload_directory)
+            web_utils.create_upload_directory(cls.upload_directory)
             app.config['UPLOAD_FOLDER'] = cls.upload_directory
             cls.app = app
 
@@ -36,28 +39,22 @@ class Test(unittest.TestCase):
 
     def test_file_extension_is_valid(self):
         file_name = 'abc.' + file_extension_constants.HED_XML_EXTENSION
-        is_valid = utils._file_extension_is_valid(file_name,file_extension_constants.HED_FILE_EXTENSIONS)
+        is_valid = web_utils._file_extension_is_valid(file_name, file_extension_constants.HED_FILE_EXTENSIONS)
         self.assertTrue(is_valid)
-
-    def test_url_to_file(self):
-        downloaded_file = utils.url_to_file(self.default_test_url)
-        self.assertTrue(downloaded_file)
-        utils.delete_file_if_it_exist(downloaded_file)
-
 
     def test__run_conversion(self):
         result_dict = utils._run_conversion(self.hed_xml_file)
         assert(result_dict[constants.HED_OUTPUT_LOCATION_KEY])
-        utils.delete_file_if_it_exist(result_dict[constants.HED_OUTPUT_LOCATION_KEY])
+        hed.util.file_util.delete_file_if_it_exist(result_dict[constants.HED_OUTPUT_LOCATION_KEY])
 
         result_dict = utils._run_conversion(self.hed_wiki_file)
         assert (result_dict[constants.HED_OUTPUT_LOCATION_KEY])
-        utils.delete_file_if_it_exist(result_dict[constants.HED_OUTPUT_LOCATION_KEY])
+        hed.util.file_util.delete_file_if_it_exist(result_dict[constants.HED_OUTPUT_LOCATION_KEY])
 
     def test__run_tag_compare(self):
         result_dict = utils._run_tag_compare(self.hed_xml_file)
         assert (result_dict[constants.HED_OUTPUT_LOCATION_KEY])
-        utils.delete_file_if_it_exist(result_dict[constants.HED_OUTPUT_LOCATION_KEY])
+        hed.util.file_util.delete_file_if_it_exist(result_dict[constants.HED_OUTPUT_LOCATION_KEY])
 
     def test_generate_download_file_response_and_delete(self):
         result_dict = utils._run_tag_compare(self.hed_xml_file)
@@ -68,17 +65,17 @@ class Test(unittest.TestCase):
             response = utils.generate_download_file_response_and_delete(temp_file)
             assert(response.status_code == 200)
         except:
-            utils.delete_file_if_it_exist(temp_file)
+            hed.util.file_util.delete_file_if_it_exist(temp_file)
             raise
 
     def test_handle_http_error(self):
         with self.app.app_context():
-            response, status_code = utils.handle_http_error("404", "Fake Error from unit tests(ignore)", as_text=False)
+            response, status_code = web_utils.handle_http_error("404", "Fake Error from unit tests(ignore)", as_text=False)
             assert(status_code == "404")
 
     def test__file_extension_is_valid(self):
         expected_extension = '.xml'
-        ext_equal = utils._file_extension_is_valid(self.hed_xml_file, [expected_extension])
+        ext_equal = web_utils._file_extension_is_valid(self.hed_xml_file, [expected_extension])
         self.assertTrue(ext_equal)
 
     def test__save_hed_to_upload_folder_if_present(self):
@@ -86,33 +83,27 @@ class Test(unittest.TestCase):
             upload_folder_file = None
             with open(self.hed_xml_file, "r") as f:
                 f.filename = self.hed_xml_file
-                upload_folder_file = utils._save_hed_to_upload_folder_if_present(f)
+                upload_folder_file = web_utils._save_hed_to_upload_folder_if_present(f)
 
             self.assertTrue(upload_folder_file)
-            utils.delete_file_if_it_exist(upload_folder_file)
+            hed.util.file_util.delete_file_if_it_exist(upload_folder_file)
 
     def test__file_has_valid_extension(self):
         accepted_file_extensions = [".xml"]
         ext_equal = False
         with open(self.hed_xml_file, "r") as f:
             f.filename = self.hed_xml_file
-            ext_equal = utils._file_has_valid_extension(f, accepted_file_extensions)
+            ext_equal = web_utils._file_has_valid_extension(f, accepted_file_extensions)
         self.assertTrue(ext_equal)
-
-    def test_get_file_extension(self):
-        expected_extension = '.xml'
-        file_extension = utils._get_file_extension(self.hed_xml_file)
-        self.assertTrue(file_extension)
-        self.assertEqual(expected_extension, file_extension)
 
     def test_delete_file_if_it_exist(self):
         some_file = '3k32j23kj.txt'
-        deleted = utils.delete_file_if_it_exist(some_file)
+        deleted = hed.util.file_util.delete_file_if_it_exist(some_file)
         self.assertFalse(deleted)
 
     def test_create_folder_if_needed(self):
         some_folder = self.dummy_directory_name
-        created = utils._create_folder_if_needed(some_folder)
+        created = web_utils._create_folder_if_needed(some_folder)
         self.assertTrue(created)
         os.rmdir(some_folder)
 
@@ -120,9 +111,9 @@ class Test(unittest.TestCase):
         some_file1 = self.test_text_file
         some_file2 = self.test_text_dest_file
         with open(some_file1, "r") as f1, open(some_file2, "w") as f2:
-            success = utils._copy_file_line_by_line(f1, f2)
+            success = web_utils._copy_file_line_by_line(f1, f2)
         self.assertTrue(success)
-        utils.delete_file_if_it_exist(some_file2)
+        hed.util.file_util.delete_file_if_it_exist(some_file2)
 
     # More elaborate to handle test cases for these as the interact with the forms...
 

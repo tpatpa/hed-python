@@ -3,6 +3,8 @@ import os
 from hed.webconverter.app_factory import AppFactory
 import shutil
 
+import hed.shared.web_utils
+
 
 class Test(unittest.TestCase):
     @classmethod
@@ -13,7 +15,7 @@ class Test(unittest.TestCase):
             from hed.webconverter import utils
             from hed.webconverter.routes import route_blueprint
             app.register_blueprint(route_blueprint)
-            utils.create_upload_directory(cls.upload_directory)
+            hed.shared.web_utils.create_upload_directory(cls.upload_directory)
             app.config['UPLOAD_FOLDER'] = cls.upload_directory
             cls.app = app.test_client()
 

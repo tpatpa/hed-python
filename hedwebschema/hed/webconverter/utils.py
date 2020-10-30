@@ -1,40 +1,18 @@
-import os
-
-import tempfile
 import traceback
 import urllib
-from flask import jsonify, Response
-from flask import current_app
+from flask import Response
+
+from hed.util.file_util import url_to_file, get_file_extension
 
 from hed.webconverter.constants.other import file_extension_constants
 from hed.webconverter.constants.error import error_constants
 from hed.webconverter.constants.form import conversion_arg_constants, js_form_constants
 
-from hed.schema import xml2wiki, wiki2xml
-from hed.schema.util.utils import SchemaError
-from hed.utilities.util import map_schema
-from hed.schema.util import constants as converter_constants
-
-UPLOAD_DIRECTORY_KEY = 'UPLOAD_FOLDER'
-
-def url_to_file(resource_url):
-    """Write data from a URL resource into a file. Data is decoded as unicode.
-
-    Parameters
-    ----------
-    resource_url: string
-        The URL to the resource.
-
-    Returns
-    -------
-    string: The local temporary filename for downloaded file
-    """
-    url_request = urllib.request.urlopen(resource_url)
-    suffix = _get_file_extension(resource_url)
-    url_data = str(url_request.read(), 'utf-8')
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False, mode='w', encoding='utf-8') as opened_file:
-        opened_file.write(url_data)
-        return opened_file.name
+from hed.schematools import xml2wiki, wiki2xml, constants as converter_constants
+from hed.util.errors import SchemaError
+from hed.tools import duplicate_tags
+from hed.util.file_util import delete_file_if_it_exist
+from hed.shared.web_utils import handle_http_error, _save_hed_to_upload_folder_if_present, _file_has_valid_extension
 
 
 def _get_uploaded_file_paths_from_forms(form_request_object):
@@ -66,7 +44,7 @@ def _run_conversion(hed_file_path):
 
     returns: A dictionary with converter.constants filled in.
     """
-    input_extension = _get_file_extension(hed_file_path)
+    input_extension = get_file_extension(hed_file_path)
     if input_extension == file_extension_constants.HED_XML_EXTENSION:
         conversion_function = xml2wiki.convert_hed_xml_2_wiki
     elif input_extension == file_extension_constants.HED_WIKI_EXTENSION:
@@ -81,11 +59,11 @@ def _run_tag_compare(local_xml_path):
 
     returns: A dictionary with converter.constants filled in.
     """
-    input_extension = _get_file_extension(local_xml_path)
+    input_extension = get_file_extension(local_xml_path)
     if input_extension != file_extension_constants.HED_XML_EXTENSION:
         raise ValueError(f"Invalid extension type: {input_extension}")
 
-    return map_schema.check_for_duplicate_tags(local_xml_path)
+    return duplicate_tags.check_for_duplicate_tags(local_xml_path)
 
 
 def run_conversion(form_request_object):
@@ -183,112 +161,6 @@ def generate_download_file_response_and_delete(full_filename, display_filename=N
         return traceback.format_exc()
 
 
-def handle_http_error(error_code, error_message, as_text=False):
-    """Handles an http error.
-
-    Parameters
-    ----------
-    error_code: string
-        The code associated with the error.
-    error_message: string
-        The message associated with the error.
-    as_text: Bool
-        If we should encode this as text or json.
-    Returns
-    -------
-    boolean
-        A tuple containing a HTTP response object and a code.
-
-    """
-    current_app.logger.error(error_message)
-    if as_text:
-        return error_message, error_code
-    return jsonify(message=error_message), error_code
-
-
-def create_upload_directory(upload_directory):
-    """Creates the upload directory.
-
-    """
-    _create_folder_if_needed(upload_directory)
-
-
-def _file_extension_is_valid(filename, accepted_file_extensions):
-    """Checks the other extension against a list of accepted ones.
-
-    Parameters
-    ----------
-    filename: string
-        The name of the other.
-
-    accepted_file_extensions: list
-        A list containing all of the accepted other extensions.
-
-    Returns
-    -------
-    boolean
-        True if the other has a valid other extension.
-
-    """
-    return os.path.splitext(filename)[1] in accepted_file_extensions
-
-
-def _save_hed_to_upload_folder_if_present(hed_file_object):
-    """Save a HED XML other to the upload folder.
-
-    Parameters
-    ----------
-    hed_file_object: File object
-        A other object that points to a HED XML other that was first saved in a temporary location.
-
-    Returns
-    -------
-    string
-        The path to the HED XML other that was saved to the upload folder.
-
-    """
-    hed_file_path = ''
-    if hed_file_object.filename:
-        hed_file_extension = _get_file_extension(hed_file_object.filename)
-        hed_file_path = _save_file_to_upload_folder(hed_file_object, hed_file_extension)
-    return hed_file_path
-
-
-def _file_has_valid_extension(file_object, accepted_file_extensions):
-    """Checks to see if a other has a valid other extension.
-
-    Parameters
-    ----------
-    file_object: File object
-        A other object that points to a other.
-    accepted_file_extensions: list
-        A list of other extensions that are accepted
-
-    Returns
-    -------
-    boolean
-        True if the other has a valid other extension.
-
-    """
-    return file_object and _file_extension_is_valid(file_object.filename, accepted_file_extensions)
-
-
-def _get_file_extension(file_name_or_path):
-    """Get the other extension from the specified filename. This can be the full path or just the name of the other.
-
-       Parameters
-       ----------
-       file_name_or_path: string
-           The name or full path of a other.
-
-       Returns
-       -------
-       string
-           The extension of the other.
-       """
-    return os.path.splitext(file_name_or_path)[1]
-
-
 def _generate_input_arguments_from_conversion_form(form_request_object):
     """Gets the conversion function input arguments from a request object associated with the conversion form.
 
@@ -306,90 +178,6 @@ def _generate_input_arguments_from_conversion_form(form_request_object):
     hed_file_path = _get_uploaded_file_paths_from_forms(form_request_object)
     conversion_input_arguments[conversion_arg_constants.HED_XML_PATH] = hed_file_path
     return conversion_input_arguments
-
-
-def delete_file_if_it_exist(file_path):
-    """Deletes a other if it exist.
-
-    Parameters
-    ----------
-    file_path: string
-        The path to a other.
-
-    Returns
-    -------
-    boolean
-        True if the other exist and was deleted.
-    """
-    if os.path.isfile(file_path):
-        os.remove(file_path)
-        return True
-    return False
-
-
-def _create_folder_if_needed(folder_path):
-    """Checks to see if the upload folder exist. If it doesn't then it creates it.
-
-    Parameters
-    ----------
-    folder_path: string
-        The path of the folder that you want to create.
-
-    Returns
-    -------
-    boolean
-        True if the upload folder needed to be created, False if otherwise.
-
-    """
-    folder_needed_to_be_created = False
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-        folder_needed_to_be_created = True
-    return folder_needed_to_be_created
-
-
-def _save_file_to_upload_folder(file_object, file_suffix=""):
-    """Save a other to the upload folder.
-
-    Parameters
-    ----------
-    file_object: File object
-        A other object that points to a other that was first saved in a temporary location.
-
-    Returns
-    -------
-    string
-        The path to the other that was saved to the temporary folder.
-
-    """
-    temporary_upload_file = tempfile.NamedTemporaryFile(suffix=file_suffix, delete=False,
-                                                        dir=current_app.config[UPLOAD_DIRECTORY_KEY])
-    _copy_file_line_by_line(file_object, temporary_upload_file)
-    return temporary_upload_file.name
-
-
-def _copy_file_line_by_line(file_object_1, file_object_2):
-    """Copy the contents of one other to the other other.
-
-    Parameters
-    ----------
-    file_object_1: File object
-        A other object that points to a other that will be copied.
-    file_object_2: File object
-        A other object that points to a other that will copy the other other.
-
-    Returns
-    -------
-    boolean
-       True if the other was copied successfully, False if it wasn't.
-
-    """
-    try:
-        for line in file_object_1:
-            file_object_2.write(line)
-        return True
-    except:
-        return False
 
 
 def url_present_in_form(conversion_form_request_object):
