@@ -12,7 +12,7 @@ from hed.schematools import xml2wiki, wiki2xml, constants as converter_constants
 from hed.util.errors import SchemaError
 from hed.tools import duplicate_tags
 from hed.util.file_util import delete_file_if_it_exist
-from hed.shared.web_utils import handle_http_error, _save_hed_to_upload_folder_if_present, _file_has_valid_extension
+from hed.webconverter.web_utils import handle_http_error, _save_hed_to_upload_folder_if_present, _file_has_valid_extension
 
 
 def _get_uploaded_file_paths_from_forms(form_request_object):

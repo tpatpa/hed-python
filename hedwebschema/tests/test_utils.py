@@ -7,7 +7,7 @@ from hed.webconverter.app_factory import AppFactory
 from hed.webconverter.constants.other import file_extension_constants
 
 import hed.util.file_util
-from hed.shared import web_utils
+from hed.webconverter import web_utils
 from hed.schematools import constants
 
 

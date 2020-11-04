@@ -2,7 +2,7 @@ from flask import render_template, Response, request, Blueprint, current_app
 from hed.webconverter import utils
 from hed.webconverter.constants.error import error_constants
 from hed.webconverter.constants.routing import page_constants, route_constants, blueprint_constants
-from hed.shared.web_utils import handle_http_error
+from hed.webconverter.web_utils import handle_http_error
 
 
 app_config = current_app.config
