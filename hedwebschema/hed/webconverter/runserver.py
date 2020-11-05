@@ -28,11 +28,11 @@ def configure_app():
 
 app = configure_app()
 with app.app_context():
-    from hed.webconverter import utils
+    from hed.webconverter import web_utils
     from hed.webconverter.routes import route_blueprint
 
     app.register_blueprint(route_blueprint, url_prefix=app.config['URL_PREFIX'])
-    utils.create_upload_directory(app.config['UPLOAD_FOLDER'])
+    web_utils.create_upload_directory(app.config['UPLOAD_FOLDER'])
     setup_logging()
 
 if __name__ == '__main__':

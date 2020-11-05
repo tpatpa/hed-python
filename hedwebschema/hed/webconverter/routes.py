@@ -2,6 +2,8 @@ from flask import render_template, Response, request, Blueprint, current_app
 from hed.webconverter import utils
 from hed.webconverter.constants.error import error_constants
 from hed.webconverter.constants.routing import page_constants, route_constants, blueprint_constants
+from hed.webconverter.web_utils import handle_http_error
+
 
 app_config = current_app.config
 route_blueprint = Blueprint(blueprint_constants.ROUTE_BLUEPRINT, __name__)
@@ -89,13 +91,13 @@ def get_conversion_results():
     if isinstance(conversion_response, Response):
         return conversion_response
     if isinstance(conversion_response, str):
-        return utils.handle_http_error(error_constants.INTERNAL_SERVER_ERROR,
-                                       conversion_response,
-                                       as_text=True)
+        return handle_http_error(error_constants.INTERNAL_SERVER_ERROR,
+                                                             conversion_response,
+                                                             as_text=True)
 
-    return utils.handle_http_error(error_constants.INTERNAL_SERVER_ERROR,
+    return handle_http_error(error_constants.INTERNAL_SERVER_ERROR,
                                    "Invalid response type in get_duplicate_tag_results.  This should not happen.",
-                                   as_text=True)
+                                                         as_text=True)
 
 
 @route_blueprint.route(route_constants.SUBMIT_TAG_ROUTE, strict_slashes=False, methods=['POST'])
@@ -117,15 +119,15 @@ def get_duplciate_tag_results():
         return comparison_response
     if isinstance(comparison_response, str):
         if comparison_response:
-            return utils.handle_http_error(error_constants.INTERNAL_SERVER_ERROR,
-                                           comparison_response,
-                                           as_text=True)
+            return handle_http_error(error_constants.INTERNAL_SERVER_ERROR,
+                                                                 comparison_response,
+                                                                 as_text=True)
         else:
             return ""
 
-    return utils.handle_http_error(error_constants.INTERNAL_SERVER_ERROR,
+    return handle_http_error(error_constants.INTERNAL_SERVER_ERROR,
                                    "Invalid response type in get_duplicate_tag_results.  This should not happen.",
-                                   as_text=True)
+                                                         as_text=True)
 
 
 
