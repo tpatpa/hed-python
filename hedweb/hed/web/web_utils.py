@@ -3,12 +3,13 @@ import pathlib
 import tempfile
 import traceback
 from urllib.parse import urlparse
+from werkzeug.utils import secure_filename
 from flask import current_app, jsonify, Response
 
 from hed.util import hed_cache
-from hed.util.file_util import get_file_extension, delete_file_if_it_exist
+from hed.util.file_util import get_file_extension, delete_file_if_it_exists
 from hed.util.hed_schema import HedSchema
-from hed.web.constants import common_constants, error_constants
+from hed.web.constants import common_constants, error_constants, file_constants
 
 app_config = current_app.config
 
@@ -203,11 +204,35 @@ def generate_download_file_response(download_file, display_name=None, header=Non
                     yield header
                 for line in download:
                     yield line
-            delete_file_if_it_exist(download_file)
+            delete_file_if_it_exists(download_file)
         return Response(generate(), mimetype='text/plain charset=utf-8',
                         headers={'Content-Disposition': f"attachment filename={display_name}"})
     except:
         return traceback.format_exc()
+
+
+def generate_issues_filename(basename, prefix, suffix=''):
+    """Generates a filename for the attachment of the form prefix_basename_suffix.txt.
+
+    Parameters
+    ----------
+   basename: str
+        The name of the base, usually the name of the file that the issues were generated from
+    prefix: str
+        The prefix preappended to the front of the basename
+    suffix: str
+        The suffix appended to the end of the basename
+    Returns
+    -------
+    string
+        The name of the attachment other containing the issues.
+    """
+    filename = secure_filename(prefix)
+    if basename:
+        filename = filename + '_' + secure_filename(basename).rsplit('.')[0]
+    if suffix:
+        return filename + '_' + secure_filename(suffix) + file_constants.TEXT_EXTENSION
+    return filename + file_constants.TEXT_EXTENSION
 
 
 def get_hed_path_from_pull_down(form_request_object):
@@ -314,3 +339,28 @@ def save_file_to_upload_folder(file_object, delete_on_close=False):
     except:
         file_path = ''
     return file_path
+
+
+def save_issues_to_upload_folder(issues, filename):
+    """Saves the issues found the upload folder as filename.
+
+    Parameters
+    ----------
+    issues: string
+        A string containing the validation issues.
+    filename: str
+        File name of the issue folder
+
+    Returns
+    -------
+    string
+        The name of the validation output other.
+
+    """
+
+    issues_file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+    with open(issues_file_path, 'w', encoding='utf-8') as issues_file:
+        for val_issue in issues:
+            issues_file.write(val_issue['message'] + "\n")
+    issues_file.close()
+    return issues_file_path

@@ -1,11 +1,10 @@
 import json
-import os
 import traceback
 from urllib.error import URLError, HTTPError
 from flask import current_app
 from werkzeug.utils import secure_filename
 
-from hed.util.file_util import get_file_extension, delete_file_if_it_exist
+from hed.util.file_util import get_file_extension, delete_file_if_it_exists
 from hed.validator.hed_validator import HedValidator
 from hed.util.hed_file_input import HedFileInput
 
@@ -52,31 +51,9 @@ def generate_arguments_from_validation_form(form_request_object):
     return validation_input_arguments
 
 
-def generate_spreadsheet_validation_filename(spreadsheet_filename, worksheet_name=''):
-    """Generates a filename for the attachment that will contain the spreadsheet validation issues.
-
-    Parameters
-    ----------
-    spreadsheet_filename: string
-        The name of the spreadsheet other.
-    worksheet_name: string
-        The name of the spreadsheet worksheet.
-    Returns
-    -------
-    string
-        The name of the attachment other containing the validation issues.
-    """
-    if worksheet_name:
-        return common_constants.VALIDATION_OUTPUT_FILE_PREFIX + \
-               secure_filename(spreadsheet_filename).rsplit('.')[0] + '_' + \
-               secure_filename(worksheet_name) + file_constants.TEXT_EXTENSION
-    return common_constants.VALIDATION_OUTPUT_FILE_PREFIX + secure_filename(spreadsheet_filename).rsplit('.')[
-        0] + file_constants.TEXT_EXTENSION
-
-
 def report_eeg_events_validation_status(request):
-    """Reports validation status of hed strings associated with EEG events
-       received from EEGLAB plugin HEDTools
+    """
+    Reports validation status of hed strings associated with EEG events received from EEGLAB plugin HEDTools
 
     Parameters
     ----------
@@ -115,7 +92,7 @@ def report_eeg_events_validation_status(request):
     except:
         validation_status[error_constants.ERROR_KEY] = traceback.format_exc()
     finally:
-        delete_file_if_it_exist(hed_xml_file)
+        delete_file_if_it_exists(hed_xml_file)
 
     return validation_status
 
@@ -140,9 +117,10 @@ def report_spreadsheet_validation_status(form_request_object):
         hed_validator = validate_spreadsheet(input_arguments)
         validation_issues = hed_validator.get_validation_issues()
         if validation_issues:
-            issue_file = save_issues_to_upload_folder(input_arguments[common_constants.SPREADSHEET_FILE],
-                                                      validation_issues,
-                                                      input_arguments[common_constants.WORKSHEET_NAME])
+            issues_filename = web_utils.generate_issues_filename(common_constants.VALIDATION_OUTPUT_FILE_PREFIX,
+                                                                 input_arguments[common_constants.SPREADSHEET_FILE],
+                                                                 input_arguments[common_constants.WORKSHEET_NAME])
+            issue_file = web_utils.save_issues_to_upload_folder(validation_issues, issues_filename)
             download_response = web_utils.generate_download_file_response(issue_file)
             if isinstance(download_response, str):
                 return web_utils.handle_http_error(error_constants.NOT_FOUND_ERROR, download_response)
@@ -154,36 +132,8 @@ def report_spreadsheet_validation_status(form_request_object):
     except Exception as e:
         return "Unexpected processing error: " + str(e)
     finally:
-        delete_file_if_it_exist(input_arguments[common_constants.SPREADSHEET_PATH])
-        # delete_file_if_it_exist(input_arguments[common_constants.HED_XML_FILE])
+        delete_file_if_it_exists(input_arguments.get(common_constants.SPREADSHEET_PATH, ''))
     return ""
-
-
-def save_issues_to_upload_folder(spreadsheet_filename, validation_issues, worksheet_name=''):
-    """Saves the validation issues found to a other in the upload folder.
-
-    Parameters
-    ----------
-    spreadsheet_filename: string
-        The name to the spreadsheet.
-    worksheet_name: string
-        The name of the spreadsheet worksheet.
-    validation_issues: string
-        A string containing the validation issues.
-
-    Returns
-    -------
-    string
-        The name of the validation output other.
-
-    """
-    validation_issues_filename = generate_spreadsheet_validation_filename(spreadsheet_filename, worksheet_name)
-    validation_issues_file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], validation_issues_filename)
-    with open(validation_issues_file_path, 'w', encoding='utf-8') as validation_issues_file:
-        for val_issue in validation_issues:
-            validation_issues_file.write(val_issue['message'] + "\n")
-    validation_issues_file.close()
-    return validation_issues_file_path
 
 
 def validate_spreadsheet(validation_arguments):
