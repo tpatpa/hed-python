@@ -3,7 +3,7 @@ const SCHEMA_MEDIAWIKI_EXTENSION = 'mediawiki';
 const DEFAULT_XML_URL = "https://raw.githubusercontent.com/hed-standard/hed-specification/master/hedxml/HED7.1.1.xml";
 
 $(function () {
-    prepareSchemaForm();
+    prepareForm();
 });
 
 /**
@@ -13,47 +13,57 @@ $('#schema-file').on('change', function () {
     updateFileLabel($('#schema-file').val(), '#schema-file-display-name');
     $('#schema-file-option').prop('checked', true);
     clearSchemaSubmitFlash()
-    updateFormGui();
+    updateForm();
 });
 
 $('#schema-url').on('change', function () {
     updateFileLabel($('#schema-url').val(), '#schema-url-display-name');
     $('#schema-url-option').prop('checked', true);
     clearSchemaSubmitFlash()
-    updateFormGui();
+    updateForm();
 });
 
 /**
  * Submits the form for conversion if we have a valid file.
  */
-$('#schema-conversion-submit').on('click', function () {
+$('#schema-submit').on('click', function () {
     if (getSchemaFilename() === "") {
         flashMessageOnScreen('No valid source input file.  See above.', 'error',
             'schema-submit-flash')
     } else {
-        submitSchemaConversionForm();
+        submitSchemaForm();
     }
 });
 
-/**
- * Submits the form for tag comparison if we have a valid file.
- */
-$('#schema-check-submit').on('click', function () {
-   if (getSchemaFilename() === "") {
-        flashMessageOnScreen('No valid source schema file.  See above.', 'error',
-            'schema-submit-flash')
-    } else {
-        submitSchemaComplianceCheckForm();
-    }
-});
 
 $('#schema-file-option').on('change', function () {
-    updateFormGui();
+    updateForm();
 });
 
 $('#schema-url-option').on('change',function () {
-    updateFormGui();
+    updateForm();
 });
+
+/**
+ * Clear the fields in the form.
+ */
+function clearForm() {
+    $('#schema-form')[0].reset();
+    $('#schema-url-option').prop('checked', false);
+    $('#schema-file-option').prop('checked', false);
+}
+
+/**
+ * Resets the flash messages that aren't related to the form submission.
+ A * @param {String} message - If true, reset the flash message related to the submit button.
+ */
+function clearFormFlashMessages(resetSubmitFlash) {
+    flashMessageOnScreen('', 'success', 'schema-file-flash');
+    flashMessageOnScreen('', 'success', 'schema-url-flash');
+    if (resetSubmitFlash) {
+        flashMessageOnScreen('', 'success', 'schema-submit-flash');
+    }
+}
 
 function clearSchemaSubmitFlash() {
     flashMessageOnScreen('', 'success', 'schema-submit-flash')
@@ -76,8 +86,7 @@ function convertToOutputName(original_filename) {
 function getSchemaFilename() {
     let checkRadio = document.querySelector('input[name="schema-upload-options"]:checked');
     if (checkRadio == null) {
-        flashMessageOnScreen('No source file specified.', 'error',
-            'schema-url-flash');
+        flashMessageOnScreen('No source file specified.', 'error', 'schema-url-flash');
         return "";
     }
     let checkRadioVal = checkRadio.id
@@ -85,8 +94,7 @@ function getSchemaFilename() {
     let schemaFileIsEmpty = schemaFile[0].files.length === 0;
     if (checkRadioVal === "schema-file-option") {
         if (schemaFileIsEmpty) {
-            flashMessageOnScreen('Schema file not specified.', 'error',
-                'schema-file-flash');
+            flashMessageOnScreen('Schema file not specified.', 'error', 'schema-file-flash');
             return '';
         }
 
@@ -109,50 +117,25 @@ function getSchemaFilename() {
  * Prepare the validation form after the page is ready. The form will be reset to handle page refresh and
  * components will be hidden and populated.
  */
-function prepareSchemaForm() {
-    resetForm();
+function prepareForm() {
+    clearForm();
     $('#schema-url').val(DEFAULT_XML_URL);
 }
 
-/**
- * Resets the flash messages that aren't related to the form submission.
- A * @param {String} message - If true, reset the flash message related to the submit button.
- */
-function resetFlashMessages(resetSubmitFlash) {
-    flashMessageOnScreen('', 'success', 'schema-file-flash');
-    flashMessageOnScreen('', 'success', 'schema-url-flash');
-    if (resetSubmitFlash) {
-        flashMessageOnScreen('', 'success', 'schema-submit-flash');
-    }
-}
-
-/**
- * Resets the fields in the form.
- */
-function resetForm() {
-    $('#schema-form')[0].reset();
-    $('#schema-url-option').prop('checked', false);
-    $('#schema-file-option').prop('checked', false);
-}
-
-function splitExt(filename) {
-    const index = filename.lastIndexOf('.');
-    return (-1 !== index) ? [filename.substring(0, index), filename.substring(index + 1)] : [filename, ''];
-}
 
 /**
  * Submit the form and return the conversion results as an attachment
  */
-function submitSchemaConversionForm() {
+function submitSchemaForm() {
     let schemaForm = document.getElementById("schema-form");
     let formData = new FormData(schemaForm);
     let display_name = convertToOutputName(getSchemaFilename())
-    resetFlashMessages(false);
-    flashMessageOnScreen('Specification is being converted...', 'success',
+    clearFormFlashMessages(false);
+    flashMessageOnScreen('Schema is being processed...', 'success',
         'schema-submit-flash')
     $.ajax({
             type: 'POST',
-            url: "{{url_for('route_blueprint.get_schema_conversion_results')}}",
+            url: "{{url_for('route_blueprint.get_schema_results')}}",
             data: formData,
             contentType: false,
             processData: false,
@@ -168,31 +151,7 @@ function submitSchemaConversionForm() {
     ;
 }
 
-function submitSchemaComplianceCheckForm() {
-    let schemaForm = document.getElementById("schema-form");
-    let formData = new FormData(schemaForm);
-    let display_name = convertToResultsName(getSchemaFilename(), 'HED3G_format_issues')
-    resetFlashMessages(false);
-    flashMessageOnScreen('Checking schema for HED-3G compliance...', 'success',
-        'schema-submit-flash')
-    $.ajax({
-            type: 'POST',
-            url: "{{url_for('route_blueprint.get_schema_compliance_check_results')}}",
-            data: formData,
-            contentType: false,
-            processData: false,
-            dataType: 'text',
-            success: function (download, status, xhr) {
-                getResponseSuccess(download, xhr, display_name, 'schema-submit-flash')
-            },
-            error: function (download, status, xhr) {
-                getResponseFailure(download, xhr, display_name, 'schema-submit-flash')
-            }
-        }
-    )
-}
-
-function updateFormGui() {
+function updateForm() {
      let filename = getSchemaFilename();
      let isXMLFilename = fileHasValidExtension(filename, [SCHEMA_XML_EXTENSION]);
      let isMediawikiFilename = fileHasValidExtension(filename, [SCHEMA_MEDIAWIKI_EXTENSION]);
